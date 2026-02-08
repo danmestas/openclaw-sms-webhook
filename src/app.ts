@@ -13,6 +13,24 @@ export function createApp(gateway: GatewayClient) {
     res.json({ status: 'ok' });
   });
 
+  // Proxy voice routes to the voice-call webhook server on port 3334
+  app.all('/voice/*', async (req, res) => {
+    try {
+      const url = `http://localhost:3334${req.originalUrl}`;
+      const headers: Record<string, string> = { 'content-type': req.headers['content-type'] || 'application/x-www-form-urlencoded' };
+      const resp = await fetch(url, {
+        method: req.method,
+        headers,
+        body: req.method !== 'GET' ? new URLSearchParams(req.body as Record<string, string>).toString() : undefined,
+      });
+      const body = await resp.text();
+      res.status(resp.status).type(resp.headers.get('content-type') || 'text/xml').send(body);
+    } catch (err) {
+      console.error('[Proxy] Failed to proxy to voice server:', err);
+      res.status(502).send('Voice server unavailable');
+    }
+  });
+
   app.post('/sms/webhook', async (req, res) => {
     const { From, To, Body } = req.body;
 
